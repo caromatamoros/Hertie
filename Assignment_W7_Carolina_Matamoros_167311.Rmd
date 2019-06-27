@@ -1,0 +1,248 @@
+---
+title: 'Web Scraping: Assignment 7'
+author: "Carolina Matamoros"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+### 0. Preparation: Load packages
+```{r Loading Packages, include=FALSE}
+
+p_needed <- c("rvest", # scraping suite
+              "httr", "httpuv", # suites to ease HTTP communication
+              "RSelenium", # access Selenium API
+              "pageviews", "aRxiv", "rtweet", "ROAuth", "gtrendsR", "ggmap", 
+              "robotstxt", # parse robots.txt files
+              "readr", # imports spreadsheet data
+              "haven", # imports SPSS, Stata and SAS files
+              "magrittr", #  for piping
+              "plyr", # for consistent split-apply-combines
+              "dplyr",  # provides data manipulating functions
+              "stringr", # for string processing
+              "lubridate", # work with dates
+              "jsonlite", # parse JSON data
+              "devtools", # developer tools
+              "networkD3", # tools to process network data
+              "ggplot2", # for graphics
+              "tidyr", # for tidying data frames
+              "broom", # for tidying model output
+              "janitor", # for basic data tidying and examinations
+              "reshape2", # reshape data 
+              "xtable", # generate table output
+              "stargazer", # generate nice model table
+              "babynames", # US babynames dataset 
+              "xml2",
+              "maps",
+              "mapproj",
+              "nycflights13" # data set on all 336776 flights departing from NYC in 2013
+)
+packages <- rownames(installed.packages())
+p_to_install <- p_needed[!(p_needed %in% packages)]
+if (length(p_to_install) > 0) {
+  install.packages(p_to_install)
+}
+lapply(p_needed, require, character.only = TRUE)
+
+
+
+```
+
+
+
+##### 1. Purpose of the Project
+
+The Wikimedia REST API provides access to Wikimedia content and data in machine-readable formats.
+
+a. Familiarize yourself with the API by studying the documentation at https://wikimedia.org/api/rest_v1/. The Wikimedia Services team expects you to specify responsible queries. How should your queries look like in order to comply to the rules? (Answer in a couple of sentences)
+b. One of the endpoints provides access to the pageview counts of a given Wikipedia article in a given date range. Give the request URL for an example query of this endpoint! You can freely choose all available parameters.
+
+<span style="color:blue">
+a) The documentation shown in for the APIs in wikipedia provide some general rules and clarify the type of requests that can be made according to the type of infomration the client is interested on. As general rules the client must limit their requests to 200 per day and they are asked to set and unique head identifier to contact them more easily. Afterwards most of the services are GET requests were the URL is defined according to the interest of the client. Lastly they ask to inform for every specific  end point documentation to find out independently the 1. Licensing Information 2. Stability markers that explain the status of development and 3.ENd point usage limits.
+
+An example of how the query should look like is: 
+/metrics/pageviews/per-article/{project}/{access}/{agent}/{article}/{granularity}/{start}/{end}
+
+b)An example for the Page "Colombian Conflict" with monthly granularity and from 2012 to 2018
+
+https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/en.wikipedia.org/all-access/all-agents/Colombian%20conflict/monthly/20120101/20180101
+
+</span>
+
+c. The `pageviews` package is an R client of the pageviews endpoint of the Wikimedia REST API. Check out how the package works. Then, specify two queries - one for the article on Donald Trump and one for Hillary Clinton on the English Wikipedia between January and December 2016. Based on the data returned by the API, plot both time-series of pageviews against each other!
+
+```{r, eval = TRUE}
+#C) 
+
+DonaldTrump <- article_pageviews(project = "en.wikipedia.org", article = "Donald Trump", start = as.Date('2016-01-01'), end = as.Date("2016-12-31"), user_type = c("all-agents"), granularity = c("daily"),platform = c("all-access"))
+
+HillaryClinton <- article_pageviews(project = "en.wikipedia.org", article = "Hillary Clinton", start = as.Date('2016-01-01'), end = as.Date("2016-12-31"), user_type = c("all-agents"), granularity = c("daily"),platform = c("all-access"))
+
+vDonald <- DonaldTrump$views
+vHillary <- HillaryClinton$views
+data <- cbind.data.frame(DonaldTrump$date,vDonald,vHillary)
+names(data) <- c("Date","Donald_Views","Hillary_Views")
+data$Date <- as.Date(data$Date) 
+
+ts.plot(ts(data$Donald_Views),ts(data$Hillary_Views), col=4:2, main = "Wiki Views", xlab = "Day in 2016", ylab = "Views")
+axis.Date(1,data$Date)
+legend("topleft",legend=c("Donald","Hillary"),lty=c(1,2,3),col=4:2,bg="white",lwd=2)
+```
+
+d. The `WikipediR` package provides access to more content on single Wikipedia pages. Check out its functionality and use it to find out content and metadata features of the article on Donald Trump in the English Wikipedia. Use at least 4 different functions from the package in your exploration of the data!
+
+```{r, eval = TRUE}
+#d)
+
+donald_cats <- categories_in_page(domain = "en.wikipedia.org", pages = "Donald Trump", properties = "sortkey")
+titles <- character()
+ncat <- length(donald_cats[["query"]][["pages"]][["4848272"]][["categories"]])
+for (i in 1:ncat) {
+  titles[i] <- donald_cats[["query"]][["pages"]][["4848272"]][["categories"]][[i]][["title"]]
+}
+print(c("This are the first 5 categories in Donald Trump's page",titles[1:5]) )
+
+#Links
+external_links <- page_external_links("en","wikipedia", page = "Donald Trump", protocol = "http")
+
+ext_links <- character()
+ncat <- length(external_links[["query"]][["pages"]][["4848272"]][["extlinks"]])
+for (i in 1:ncat) {
+ext_links[i] <- external_links[["query"]][["pages"]][["4848272"]][["extlinks"]][[i]][["*"]]
+
+}
+
+ext_links[1:5]
+
+
+changes <- recent_changes(domain = "en.wikipedia.org", pages = "Donald Trump", properties = "user", type = "edit", dir = "newer", limit = 50, clean_response = TRUE)
+
+userchangers <- character()
+
+for (i in 1:length(changes)) {
+userchangers[i] <- changes[[i]][["user"]]
+}
+
+userchangers[1:5]
+idsbyuser <- list()
+
+Sys.sleep(15)
+for(i in 1:length(userchangers)){
+  idsbyuser[i] <- user_contributions(domain = "en.wikipedia.org", pages = "Donald Trump", username = userchangers[i], properties = "ids", mainspace = TRUE, limit = 10, clean_response = TRUE)
+}
+
+for( i in 1:5){
+  print(str_c(cat(unlist(c("for the user ", userchangers[i]," their first id is: ",idsbyuser[[i]][1])))),collapse = "")
+        }
+```
+
+
+
+##### 2. Checking the current weather with the OpenWeatherMap API
+
+OpenWeatherMap (http://openweathermap.org/) is a service that provides (partly for free) weather data. 
+
+
+b) Sign up for the API (for free!) at http://openweathermap.org/api and store the API key in a local `.RData` file. (Important: You don't have to give proof for this step. In particular, you don't have to show how you store the key - I don't want to see it in the script!!)
+```{r include=FALSE}
+ApiKey <- "6cfc18fdada578c44a99e85c92099142"
+```
+
+A) Familiarize yourself with the API for current weather data at http://openweathermap.org/current. Give the request URL for an example query that asks for the current weather in Paris, Texas, in imperial units, French language, and XML format! Use a fictional API key to complete your URL.
+```{r, eval = TRUE}
+Cities <- character()
+Cities[1] <- ("Texas")
+Cities[2] <- ("Paris")
+
+Language <- "fr"
+
+Units <- "imperial"
+
+Mode <- "xml"
+
+url <- "http://api.openweathermap.org/data/2.5/weather?q="
+url <- paste0(url,Cities[1],"&units=",Units,"&lang=",Language,"&mode=",Mode,"&appid=",ApiKey)
+
+ip_parsed_Texas <- xml2::read_xml(url)
+ip_list_Texas <- as_list(ip_parsed_Texas)
+
+url <- "http://api.openweathermap.org/data/2.5/weather?q="
+url <- paste0(url,Cities[2],"&units=",Units,"&lang=",Language,"&mode=",Mode,"&appid=",ApiKey)
+
+ip_parsed_Paris <- xml2::read_xml(url)
+ip_list_Paris <- as_list(ip_parsed_Paris)
+tempcity <- data.frame(2,2)
+tempcity[1,1] <- xml_attrs(xml_child(ip_parsed_Texas, 1))[["name"]]
+tempcity[1,2] <- xml_attrs(xml_child(ip_parsed_Texas, 2))[1]
+tempcity[2,1] <-xml_attrs(xml_child(ip_parsed_Paris, 1))[["name"]]
+tempcity[2,2] <-xml_attrs(xml_child(ip_parsed_Paris, 2))[1]
+names(tempcity) <- c("City","Average F°")
+tempcity
+
+```
+
+
+c. Import the key into R and construct a query that retrieves the current weather conditions in Cape Town, South Africa. Prepare the output as a `data.frame` object (presumably with one observation) and print it out.
+```{r, eval = TRUE}
+Mode <- "json"
+Language <- "en"
+Units <- "imperial"
+City <- "Cape Town"
+
+weather <- function(ciudad,grados,idioma,modo,clave) {
+  
+  url <- "http://api.openweathermap.org/data/2.5/weather?q="
+  
+  if(modo == "json"){
+    
+  url <- paste0(url,ciudad,"&units=",grados,"&lang=",idioma,"&appid=",clave) 
+  ip_parsed <- jsonlite::fromJSON(url, flatten = TRUE)
+  }else{
+  
+  url <- paste0(url,ciudad,"&units=",grados,"&lang=",idioma,"&mode=",modo,"&appid=",clave)
+  if(mode == "xml"){ip_parsed <- xml2::read_xml(url)} else {
+    ip_parsed <- read_html(url)  
+  }
+  
+  }
+  
+  
+  ip_parsed
+}
+
+ip_parsed_Cape <- weather(City,Units,Language,Mode,ApiKey)
+Cape_data <- ip_parsed_Cape %>% unlist %>% t %>% as.data.frame(stringsAsFactors = FALSE)
+
+Cape_data
+```
+
+d. Finally, build a function getOpenWeather() that has the parameters `apikey`, `location`, and `units`, and that lets you automatically perform a query to the OpenWeatherMap API for the current weather conditions given valid values for the parameters. Test it with a couple of examples!
+
+```{r, eval = TRUE}
+Cities <- c("Bogota","Boston","Barcelona")
+Units <- c("metric","imperial")
+Language <- c("es","en","es")
+Modo <- c("json","xml","html")
+ip_parsed_eg <- list()
+Cities_data <- list()
+
+for(i in 1:length(Cities)){
+ip_parsed_eg[[i]] <- weather(Cities[i],Units[1],Language[i],Mode[1],ApiKey)
+Cities_data[[i]] <- ip_parsed_eg[[i]] %>% unlist %>% t %>% as.data.frame(stringsAsFactors = FALSE)
+}
+City_data <- data.frame(length(Cities),2)
+names(City_data) <- c("City","Average Temp°")
+
+for( i in 1:length(Cities)){
+  
+City_data[i,1] <- Cities_data[[i]]$name
+City_data[i,2] <- Cities_data[[i]]$main.temp
+
+}
+
+City_data
+```
+
+
+

@@ -1,0 +1,138 @@
+---
+title: "Web Data Collection First Assignment"
+author: "Carolina Matamoros"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+
+```{r setup, include=FALSE}
+source("../packages.r")
+```
+
+
+<br>
+
+##### 1. NYC flights
+
+Use the "nycflights13" package to answer the following questions!
+
+a. How many variables and observations does the data.frame "flights" from the nycflights13 package contain?
+b. Select the flights that started from NYC at the first day of each month!
+c. Sort flights by time of arrival!
+d. How many flights started from all the NYC airports in 2013?
+e. Which carrier had the biggest mean net delay (departure delay minus arrival delay), which the lowest?
+f. Inspect visually how the net delays are distributed!
+
+```{r}
+library(nycflights13)
+# To answer a
+str(flights)
+dim(flights)
+# answer: 336776 observadtions and 19 variables in the dataset
+
+# To answer b a possibility is to create a subset that fullfils those requirements.
+flights_1<- filter(flights, day == 1)
+flights_1JFK<- filter(flights_1, origin == "JFK")
+flights_1LGA<- filter(flights_1, origin == "LGA")
+flights_NY <-bind_rows(flights_1JFK,flights_1LGA)
+head(flights_NY)
+str(flights_NY)
+dim(flights_NY)
+
+# To answer c is required to use a function that sorts the observations by time of arrival
+
+flights_NY1 <- arrange(flights_NY, arr_time) # For the selected flights
+flights_SORT <- arrange(flights, arr_time) # For the all the flights
+head(flights_NY1)
+head(flights_SORT)
+
+
+# d is the same procedure but instead of filtering by day = 1 would be by year = 2013
+
+flights_2013<- filter(flights, year == 2013)
+flights_JFK13<- filter(flights_2013, origin == "JFK")
+flights_LGA13<- filter(flights_2013, origin == "LGA")
+flights_NY_2013<-bind_rows(flights_JFK13,flights_LGA13)
+head(flights_NY_2013)
+str(flights_NY_2013)
+dim(flights_NY_2013)
+
+# Therefore there were 215941 flights that started from NYC during 2013.
+
+# e) THis requires the creation of a new variable that measures delay followed by its main descriptive statistics by carrier
+
+flights_delay <- mutate(flights, delay = dep_delay - arr_delay)
+
+flights_delay_bycarrier <- group_by(flights_delay, carrier)
+class(flights_delay_bycarrier)
+
+summarize(flights_delay_bycarrier, n_deps = n())
+summarize(flights_delay_bycarrier, mean_delay = mean(delay, na.rm = TRUE))
+
+# Therefore the carrier with the largest mean delay time was AS with 15.8 and the smallest was by F9 with -1.72
+
+# f inspect visually the delays... thorugh plots?
+
+hist(flights_delay$delay)
+
+# simple bar chart
+plot(as.factor(flights_delay$delay))
+
+```
+
+<span style="color:blue">
+Add comment like this! (just copy the <span>...</span> lines for future comments in the Rmd file.)
+</span>
+
+
+<br>
+
+##### 2. Baby names
+
+Use the "babynames" package to answer the following questions!
+
+a. Which time period does the data frame cover?
+b. What has been the most frequent name in the US since 1880? (hint: you might need the group_by() as well as the sum() function)
+c. Use graphical means to determine since which year the name "Kim" became more popular as a female than a male name! (hint: grouping by two variables is helpful here! For the plot, use "year" on the x axis and "total count" on the y axis! Furthermore, this Stackoverflow post helps you understand how to plot two lines in one chart: https://stackoverflow.com/questions/2564258/plot-two-graphs-in-same-plot-in-r)
+
+```{r}
+# a) Time period of the data frame
+
+library(babynames)
+str(babynames)
+summary(babynames)
+
+# answer The data frame goes from 1880 to 2015
+
+# b) The names that were used the most since 1880?
+
+resumen <-babynames %>% group_by(name) %>% summarise(totalm = sum(n, na.rm = TRUE))
+
+resumen <-arrange(resumen,desc(totalm))
+head(resumen)
+
+# answer b) James is the most used name since 1880 with 5144205 uses.
+
+# C) for Kim when did Kim for Male  became less popular than for Female
+
+kim1880_2015<- filter(babynames, name == "Kim")
+
+resumenKim <-kim1880_2015 %>% group_by(sex, year) %>% summarise(totalm2 = sum(n, na.rm = TRUE))
+
+resumenKim <-arrange(resumenKim, year)
+
+library(ggplot2)
+kimdraw <- ggplot(data=resumenKim,aes(x=year,y=totalm2,linetype=sex)) +
+  geom_line(mapping=aes(color=sex)) +
+  labs(title="Kim babies by gender and year") +
+  scale_x_continuous(breaks=seq(1880,2015,25)) 
+kimdraw
+
+
+# answer C Therefore the tendency of which gender has more Kims changes right before 1955 
+
+```
+
+

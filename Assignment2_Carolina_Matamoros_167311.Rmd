@@ -1,0 +1,222 @@
+---
+title: "Assignment II"
+author: "Carolina Matamoros"
+date: "17 de febrero de 2018"
+output: html_document
+---
+
+##### 0. Load packages
+
+```{r setup, message=FALSE, warning=FALSE}
+library(rvest)
+library(stringr)
+library(dplyr)
+library(nycflights13)
+# enter R code here
+```
+
+
+
+### 1. Loops and Split-Apply-Combine
+
+Return to the `flights` dataset from the `nycflights13` package to solve the following problems.
+
+a. Identify the class of all the variables using an appropriate apply command. Explain why the output is not a character vector.
+b. Select all numeric variables and store them in a new data frame `flights_sub`. <i>(Hint: the `select_if()` function from the `dplyr` package helps!)</i>
+c. Compute the variable means of `flights_sub`, discarding all `NA` values. The result should be stored in a numeric vector.
+d. Use the `lapply()` function together with an anonymous function to center all variables of `flights_sub` (i.e., they should have mean 0). Then, check whether you succeeded with another of the apply functions.
+
+```{r}
+# a) Use an apply function to learn the class of all the variables of flights
+
+out1<- apply(flights,2, class)
+out2<- lapply(flights,class)
+out3<- sapply(flights,class)
+#out1
+out2
+#out3
+
+```
+
+Using the lapply function we create a list with the following information attached to it: the names of the variables,  the string that corresponds to the class of each value, and the class of each observation. Since they are all string descriptions in this case it is returning a list with all its positions as "character" though some say "integer" other "character" and so on.
+
+```{r}
+
+#B) by simply using the select_if function with the logical is.numeric it works.
+
+flight_sub <- data_frame()
+
+is.data.frame(flights)
+
+flight_sub <- select_if(flights,is.numeric)
+
+
+
+```
+
+This method worked directly without issues.The same result  could also be possible using a loop and verifying each position of the list created before while only keeping the variables that are numeric, this would be much less efficient so it wasn't used.
+
+```{r}
+
+#C) Calculate the mean of all the numeric variables and store it in a numeric vector
+
+meanvec <- apply(na.exclude(flight_sub),2, mean)
+class(meanvec)
+
+
+```
+By excluding the NA directly and using the apply function to calculate for all the columns (variables) the mean, a numeric vector is created as a result. Then to verify this the class function was employed.
+
+```{r}
+
+#D) Center all the variables using a anonymus function with lapply and then verify the success with another apply function
+
+sinna <- na.exclude(flight_sub)
+flight_center <- lapply(sinna, function(x) x - mean(x))
+
+lapply(flight_center, mean)
+
+```
+All the variables are centered in 0 given that is a result between e^-14 to e^-16
+
+
+### 2. Downloading and managing files
+
+Go to the webpage of the Comparative Study of Electoral Systems (CSES) and check out the Module 4, which comprises election surveys launched 2011-2016 (http://www.cses.org/datacenter/module4/module4.htm). The following piece of code identifies all links to resources on the webpage and selects the subset of links that refers to the survey questionnaire PDFs. With this at hand, try to solve the following tasks.
+
+a. Set up a folder "data/cses-pdfs".
+b. Download the first 10 of the survey questionnaire PDFs into that folder using a for loop and the download.file() function.
+c. Check if the number of files in the folder corresponds with the number of downloads and list the names of the files.
+d. Inspect the files. Which is the largest one?
+
+```{r}
+url <- "http://www.cses.org/datacenter/module4/module4.htm"
+page_links <- read_html(url) %>% html_nodes("a") %>% html_attr("href")
+survey_pdfs <- str_subset(page_links, "/survey")
+
+```
+
+```{r}
+# a) Create the defined folders
+
+(current_folder <- getwd())
+dir.create("data")
+dir.create("data/cses-pdfs")
+
+# b) download the first 10 files
+
+urli<- character()
+desti<- character()
+desti
+urli
+
+for (i in 1:10) {
+  urli[i] <- paste0("http://www.cses.org",survey_pdfs[i])
+  desti[i] <- paste0("data/cses-pdfs/",basename(survey_pdfs[i]))
+  
+  download.file(urli[i],destfile = desti[i],method ="auto")
+}
+ 
+# c) Create a list with the file names and verify that 10 were downloaded
+
+downnames <- character()
+filenames <- dir("data/cses-pdfs", full.names = FALSE)
+
+for (i in 1:10) {downnames[i] <- basename(survey_pdfs[i])}
+
+downnames <- sort.default(downnames)
+filenames <- sort.default(filenames)
+
+logvec <- logical()
+for (i in 1:10) {
+  logvec[i] <- downnames[i] == filenames[i]
+}
+logvec
+
+listnames <-list.files("data/cses-pdfs")
+listnames <- sort.default(listnames)
+logvec2 <- logical()
+for (i in 1:10) {
+  logvec2[i] <- downnames[i] == listnames[i] & listnames[i] == filenames[i]
+}
+logvec2
+listnames
+length(listnames)
+
+
+```
+After downloading the first 10 URL and saving them in the machine it was posible to verify that the names of the files corresponds with the lowest level of the path of the URL. In other words, given the structure of these urls the files kept the name given to them by the webpage, this was tested with both logvec and logvec2. At the end it was also verified that the desired 10 files were actualy downloaded and their names were listed.
+
+```{r}
+# d) Which is the largest file?
+
+info <- data.frame()
+
+for (i in 1:10) {
+  info[i,1] <- basename(desti[i]) #name of files
+  info[i,2] <- file.info(desti[i])[1] # size of the files
+}
+
+arrange(info, desc(size))
+
+```
+Therefore the largest downloaded file is the BGR_2014_Untrans_Bulgarian with a size of 660281 bytes.
+
+
+### 3. Crafting your own functions
+
+Solve the following tasks!
+
+a. Program a function `ultimateAnswer()` that always returns the number 42!
+b. Program a function `normalize()` that normalizes a numeric vector x to mean(x) = 0 and sd(x) = 1!
+c. Use `integrate()` and an anonymous function to find the area under the curve for the following functions:
+  - y = x ^ 2 - x, x in [0, 10]
+  - y = sin(x) + cos(x), x in [-pi, pi]
+
+```{r}
+# enter R code here
+
+#a) Create the ultimate function
+
+ultimateAnswer <- function() {
+  ultimateResult <- 42 
+  ultimateResult
+}
+
+```
+This will always return 42, doesn't matter when it is used.
+
+```{r}
+# enter R code here
+
+#b) Program a function `normalize()` that normalizes a numeric vector x to mean(x) = 0 and sd(x) = 1
+
+normalize <- function(x) { 
+  
+  return ((x-mean(x))/(sd(x)))
+  
+}
+# To test it I created a random vector and runned the function
+x2 <- runif(100, 0, 50)
+mean(x2)
+sd(x2)
+x2 <- normalize(x2)
+mean(x2)
+sd(x2)
+
+```
+
+Afterthe use of my "custumized" function to normalize effectively the vector x2 changed both of its mean and standard deviation values to 0 and 1 respectively proving that the function fullfils its intended purpose.
+
+```{r}
+
+#d)c. Use `integrate()` and an anonymous function to find the area under the curve for: y = x ^ 2 - x, x in [0, 10]
+
+integrate(function(x) {x ^ 2 - x}, lower = 0, upper = 10)
+
+ #  and also for: y = sin(x) + cos(x), x in [-pi, pi]
+
+integrate(function(x) {sin(x) + cos(x)}, lower = -pi, upper = pi)
+
+
+```

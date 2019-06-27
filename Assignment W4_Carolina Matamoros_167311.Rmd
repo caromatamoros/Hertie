@@ -1,0 +1,167 @@
+---
+title: "Assignment Week - 4 Web Scrapping"
+author: "Carolina Matamoros"
+date: "27 de febrero de 2018"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+
+
+
+### 0. Preparation: Load packages
+
+```{r load packages, include=FALSE}
+library(stringr)
+p_needed <- c("rvest", # scraping suite
+              "httr", "httpuv", # suites to ease HTTP communication
+              "RSelenium", # access Selenium API
+              "pageviews", "aRxiv", "rtweet", "ROAuth", "gtrendsR", "ggmap", # access various web APIs
+              "robotstxt", # parse robots.txt files
+              "readr", # imports spreadsheet data
+              "haven", # imports SPSS, Stata and SAS files
+              "magrittr", #  for piping
+              "plyr", # for consistent split-apply-combines
+              "dplyr",  # provides data manipulating functions
+              "stringr", # for string processing
+              "lubridate", # work with dates
+              "jsonlite", # parse JSON data
+              "devtools", # developer tools
+              "networkD3", # tools to process network data
+              "ggplot2", # for graphics
+              "tidyr", # for tidying data frames
+              "broom", # for tidying model output
+              "janitor", # for basic data tidying and examinations
+              "reshape2", # reshape data 
+              "xtable", # generate table output
+              "stargazer", # generate nice model table
+              "babynames", # US babynames dataset 
+              "nycflights13" # data set on all 336776 flights departing from NYC in 2013
+)
+packages <- rownames(installed.packages())
+p_to_install <- p_needed[!(p_needed %in% packages)]
+if (length(p_to_install) > 0) {
+  install.packages(p_to_install)
+}
+lapply(p_needed, require, character.only = TRUE)
+```
+
+
+### 1. Getting information out of an XML file
+
+The file `potus.xml`, available at http://www.r-datacollection.com/materials/ch-4-xpath/potus/potus.xml, provides information on past presidents of the United States.
+
+a. Import the file into R using `read_xml()`, which works like `read_html()`---just for XML files.
+b. Extract the nicknames of all presidents, store them in a vector `nicknames`, and present the first 5 elements of this vector. <i>(Hint: instead of `html_nodes()` and `html_text()`, you will need the corresponding functions for XML documents.)</i>
+c. Which religious denomiation is represented most frequently among the former presidents?
+d. Extract the occupation values of all presidents who happened to be Baptists.
+
+
+```{r}
+# a)
+
+exceldocPOTUS <- read_xml("http://www.r-datacollection.com/materials/ch-4-xpath/potus/potus.xml")
+
+# b)
+
+nicknames <- xml_text(xml_nodes(exceldocPOTUS, xpath = "//nickname"))
+head(nicknames,5)
+
+# c)
+religions <- xml_text(xml_nodes(exceldocPOTUS, xpath = "//religion"))
+tot_rel <- sort(table(religions), decreasing = TRUE)
+head(tot_rel,1)
+
+#d)
+
+baptist_occupations <- xml_text(xml_nodes(exceldocPOTUS, xpath = "//religion[contains(text(), 'Baptist')]/preceding-sibling::occupation"))
+baptist_occupations
+
+```
+
+
+### 2. Scraping newspaper headlines
+
+Use Selectorgadget and R to scrape the article headlines from https://www.theguardian.com/international. 
+
+a. Present the first 6 observations from the uncleaned vector of scraped headlines.
+b. Tidy the text data (e.g., remove irrelevant characters if there are any, and get rid of duplicates).
+c. Identify the 5 most frequent words in all headlines. (Hint: use a string processing function from the stringr package to split up the headings word by word, and use an empty space, " ", as splitting pattern.)
+
+
+```{r}
+# a)
+
+TheGuardian <- "https://www.theguardian.com/international"
+
+TheGuardian_enR <- read_html(TheGuardian)
+
+titularesnodos <- html_nodes(TheGuardian_enR, xpath = "//*[contains(concat( ' ', @class, ' ' ), concat( ' ', 'js-headline-text', ' ' ))]")
+
+titulares <- html_text(titularesnodos)
+
+head(titulares,6)
+
+# b)
+
+titulares <- str_replace_all(titulares, "\\n|\\t|\\r", "") %>% str_trim()
+titulares <- unique(titulares)
+head(titulares,6)
+
+# c)
+palabras <- unlist(str_split(titulares, " "))
+total_words <- as.data.frame(table(palabras))
+total_words <- arrange(total_words, desc(Freq))
+head(total_words,1)
+
+
+```
+
+
+
+### 3. Skyscrapers of the world
+
+Scrape the table "Buildings under construction" from https://en.wikipedia.org/wiki/List_of_tallest_buildings_in_the_world.
+
+a. Present the first 6 rows of the generated data frame.
+
+b. How many of those buildings are currently built in China? Use `table()` to present the result!
+
+c. In which city are most of the tallest buildings currently built?
+
+d. What is the sum of the planned architectural height of all those skyscrapers? 
+
+
+```{r}
+# a)
+
+Wikibuildingslist <- "https://en.wikipedia.org/wiki/List_of_tallest_buildings"
+
+BuildingList_enR <- read_html(Wikibuildingslist)
+
+Buildingstable <- as.data.frame(html_table(html_nodes(BuildingList_enR, xpath = '//*[@id="Buildings_under_construction"]/following::table[1]'), header = TRUE, fill = TRUE))
+
+Buildingstable[1:6,]
+
+# b) 
+
+table(Buildingstable$Country)["China"]
+
+# c)
+
+total_cities <- sort(table(Buildingstable$City), decreasing = TRUE)
+head(total_cities,1)
+
+# d) 
+
+meters <- unlist(str_replace_all(str_replace_all(str_extract_all(Buildingstable$Planned.architectural.height, ".+(?<=m)"),"\\s[m]",""),",",""))
+
+head(meters)
+
+#sum(as.double(meters))
+
+paste("The planned height is:",sum(as.double(meters)),"meters")
+```
+
+
